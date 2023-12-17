@@ -2,12 +2,12 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
-	"github.com/BurntSushi/toml"
-	"html/template"
 	"net/http"
 	"os"
 
+	"github.com/BurntSushi/toml"
 	_ "github.com/BurntSushi/toml"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
@@ -47,13 +47,12 @@ var store *sessions.CookieStore
 var err error
 
 func init() {
-	if _, err := toml.DecodeFile("config.toml", &config); err != nil {
+	if _, err := toml.DecodeFile("../config.toml", &config); err != nil {
 		fmt.Println("Error reading config file:", err)
 		os.Exit(1)
 	}
 
 	store = sessions.NewCookieStore([]byte(config.Session.Key))
-
 	db, err = sql.Open(config.Database.Driver, config.Database.ConnectionString)
 
 	if err != nil {
@@ -86,9 +85,9 @@ func main() {
 	r := mux.NewRouter()
 
 	r.HandleFunc("/", homeHandler).Methods("GET")
-	r.HandleFunc("/register", registerHandler).Methods("GET", "POST")
-	r.HandleFunc("/login", loginHandler).Methods("GET", "POST")
-	r.HandleFunc("/logout", logoutHandler).Methods("GET", "POST")
+	r.HandleFunc("/api/register", registerHandler).Methods("POST")
+	r.HandleFunc("/api/login", loginHandler).Methods("POST")
+	r.HandleFunc("/api/logout", logoutHandler).Methods("POST")
 
 	http.Handle("/", r)
 
@@ -116,29 +115,19 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tmpl, err := template.New("index").Parse(`
-		<h1>Hello, {{.Username}}!</h1>
-		<form action="/logout" method="post">
-		  <button type="submit">Logout</button>
-		</form>
-		`)
-	if err != nil {
-		fmt.Println(err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
+	jsonResponse := map[string]interface{}{
+		"message": "Hello, " + user.Username + "!",
 	}
 
-	tmpl.Execute(w, user)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(jsonResponse)
 }
 
 func registerHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
-		username := r.FormValue("username")
-		password := r.FormValue("password")
+		username := r.PostFormValue("username")
+		password := r.PostFormValue("password")
 
-		fmt.Println(db)
-
-		// Проверка db на nil
 		if db == nil {
 			fmt.Println("Error: Database connection is nil")
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -159,36 +148,20 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	}
+		jsonResponse := map[string]interface{}{
+			"message": "Registration successful",
+		}
 
-	tmpl, err := template.New("register").Parse(`
-		<h1>Register</h1>
-		<form action="/register" method="post">
-		  <label for="username">Username:</label>
-		  <input type="text" name="username" required>
-		  <br>
-		  <label for="password">Password:</label>
-		  <input type="password" name="password" required>
-		  <br>
-		  <button type="submit">Register</button>
-		</form>
-		`)
-	if err != nil {
-		fmt.Println(err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(jsonResponse)
 	}
-
-	tmpl.Execute(w, nil)
 }
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	session, _ := store.Get(r, "session")
 	if r.Method == "POST" {
-		username := r.FormValue("username")
-		password := r.FormValue("password")
+		username := r.PostFormValue("username")
+		password := r.PostFormValue("password")
 
 		var user User
 		row := db.QueryRow("SELECT id, username, password FROM users WHERE username = ?", username)
@@ -208,35 +181,27 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 		session.Values["user_id"] = user.ID
 		session.Save(r, w)
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+
+		jsonResponse := map[string]interface{}{
+			"message": "Login successful",
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(jsonResponse)
+
 		return
 	}
-
-	tmpl, err := template.New("login").Parse(`
-		<h1>Login</h1>
-		<form action="/login" method="post">
-		  <label for="username">Username:</label>
-		  <input type="text" name="username" required>
-		  <br>
-		  <label for="password">Password:</label>
-		  <input type="password" name="password" required>
-		  <br>
-		  <button type="submit">Login</button>
-		</form>
-		`)
-
-	if err != nil {
-		fmt.Println(err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	tmpl.Execute(w, nil)
 }
 
 func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	session, _ := store.Get(r, "session")
 	delete(session.Values, "user_id")
 	session.Save(r, w)
-	http.Redirect(w, r, "/login", http.StatusSeeOther)
+
+	jsonResponse := map[string]interface{}{
+		"message": "Logout successful",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(jsonResponse)
 }

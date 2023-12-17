@@ -3,7 +3,7 @@ port = 8080
 
 [database]
 Driver = "sqlite3"
-ConnectionString = "./database.db"
+ConnectionString = "../database.db"
 
 [session]
 key = "mysecretkey"
