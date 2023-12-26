@@ -1,23 +1,40 @@
-package main
+package api
 
 import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/sessions"
+	"goBlog/src/common/models"
 	"golang.org/x/crypto/bcrypt"
 	"net/http"
 )
 
-func HomeHandler(w http.ResponseWriter, r *http.Request, store *sessions.CookieStore, db *sql.DB, user *User) {
-	session, _ := store.Get(r, "session")
-	userID, ok := session.Values["user_id"]
-	if !ok {
+type AuthController struct {
+	db *sql.DB
+}
+
+func NewAuthController(db *sql.DB) *AuthController {
+	return &AuthController{
+		db: db,
+	}
+}
+
+type registerUser struct {
+	Username string
+	Password string
+}
+
+func (ctrl *AuthController) HomeHandler(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "user_id")
+	if userID != "" {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
 
-	row := db.QueryRow("SELECT id, username FROM users WHERE id = ?", userID)
+	var user models.User
+	row := ctrl.db.QueryRow("SELECT id, username FROM users WHERE id = ?", userID)
 	err := row.Scan(&user.ID, &user.Username)
 	if err != nil {
 		fmt.Println(err)
@@ -40,7 +57,10 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 
 		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 
-		_, err = db.Exec("INSERT INTO users (username, password) VALUES (?, ?)", username, hashedPassword)
+		_, err := db.Exec("INSERT INTO users (username, password) VALUES (?, ?)", username, hashedPassword)
+		if err != nil {
+			//
+		}
 
 		jsonResponse := map[string]interface{}{
 			"message": "Registration successful",
@@ -51,13 +71,13 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	}
 }
 
-func LoginHandler(w http.ResponseWriter, r *http.Request, store *sessions.CookieStore, db *sql.DB, user *User) {
+func LoginHandler(w http.ResponseWriter, r *http.Request, store *sessions.CookieStore, db *sql.DB, user *models.User) {
 	session, _ := store.Get(r, "session")
 	if r.Method == "POST" {
 		username := r.PostFormValue("username")
 		password := r.PostFormValue("password")
 
-		var loginUser User
+		var loginUser models.User
 		row := db.QueryRow("SELECT id, username, password FROM users WHERE username = ?", username)
 		err := row.Scan(&loginUser.ID, &loginUser.Username, &loginUser.Password)
 		if err != nil {
