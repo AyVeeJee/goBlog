@@ -3,12 +3,13 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"github.com/BurntSushi/toml"
-	"github.com/go-chi/chi/v5"
-	_ "github.com/mattn/go-sqlite3"
 	"goBlog/src/api"
 	"net/http"
 	"os"
+
+	"github.com/BurntSushi/toml"
+	"github.com/go-chi/chi/v5"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type Config struct {
@@ -60,17 +61,17 @@ func main() {
 		r.Get("/", authController.HomeHandler)
 	})
 
-	//r.Post("/api/register", func(w http.ResponseWriter, r *http.Request) {
-	//	api.RegisterHandler(w, r, db)
-	//})
-	//
-	//r.Post("/api/login", func(w http.ResponseWriter, r *http.Request) {
-	//	api.LoginHandler(w, r, store, db, &user)
-	//})
-	//
-	//r.Post("/api/logout", func(w http.ResponseWriter, r *http.Request) {
-	//	api.LogoutHandler(w, r, store)
-	//})
+	r.Route("/api/register", func(r chi.Router) {
+		r.Post("/", authController.RegisterHandler)
+	})
+
+	r.Route("/api/login", func(r chi.Router) {
+		r.Post("/", authController.LoginHandler)
+	})
+
+	r.Route("/api/logout", func(r chi.Router) {
+		r.Post("/", authController.LogoutHandler)
+	})
 
 	fmt.Println("Starting server on :8080")
 	http.ListenAndServe(":8080", r)

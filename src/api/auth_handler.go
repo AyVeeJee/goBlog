@@ -4,15 +4,17 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"goBlog/src/common/models"
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/sessions"
-	"goBlog/src/common/models"
 	"golang.org/x/crypto/bcrypt"
-	"net/http"
 )
 
 type AuthController struct {
-	db *sql.DB
+	db    *sql.DB
+	store *sessions.CookieStore
 }
 
 func NewAuthController(db *sql.DB) *AuthController {
@@ -50,14 +52,14 @@ func (ctrl *AuthController) HomeHandler(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(jsonResponse)
 }
 
-func RegisterHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
+func (ctrl *AuthController) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		username := r.PostFormValue("username")
 		password := r.PostFormValue("password")
 
 		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 
-		_, err := db.Exec("INSERT INTO users (username, password) VALUES (?, ?)", username, hashedPassword)
+		_, err := ctrl.db.Exec("INSERT INTO users (username, password) VALUES (?, ?)", username, hashedPassword)
 		if err != nil {
 			//
 		}
@@ -71,14 +73,14 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	}
 }
 
-func LoginHandler(w http.ResponseWriter, r *http.Request, store *sessions.CookieStore, db *sql.DB, user *models.User) {
-	session, _ := store.Get(r, "session")
+func (ctrl *AuthController) LoginHandler(w http.ResponseWriter, r *http.Request) {
+	session, _ := ctrl.store.Get(r, "session")
 	if r.Method == "POST" {
 		username := r.PostFormValue("username")
 		password := r.PostFormValue("password")
 
 		var loginUser models.User
-		row := db.QueryRow("SELECT id, username, password FROM users WHERE username = ?", username)
+		row := ctrl.db.QueryRow("SELECT id, username, password FROM users WHERE username = ?", username)
 		err := row.Scan(&loginUser.ID, &loginUser.Username, &loginUser.Password)
 		if err != nil {
 			fmt.Println(err)
@@ -107,8 +109,8 @@ func LoginHandler(w http.ResponseWriter, r *http.Request, store *sessions.Cookie
 	}
 }
 
-func LogoutHandler(w http.ResponseWriter, r *http.Request, store *sessions.CookieStore) {
-	session, _ := store.Get(r, "session")
+func (ctrl *AuthController) LogoutHandler(w http.ResponseWriter, r *http.Request) {
+	session, _ := ctrl.store.Get(r, "session")
 	delete(session.Values, "user_id")
 	session.Save(r, w)
 
