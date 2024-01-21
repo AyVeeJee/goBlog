@@ -53,7 +53,15 @@ func main() {
         password TEXT
     )`)
 
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS posts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        text TEXT,
+		date DATETIME
+    )`)
+
 	authController := api.NewAuthController(db)
+	blogController := api.NewBlogController(db)
 
 	r := chi.NewRouter()
 
@@ -71,6 +79,17 @@ func main() {
 
 	r.Route("/api/logout", func(r chi.Router) {
 		r.Post("/", authController.LogoutHandler)
+	})
+
+	r.Route("/api/post", func(r chi.Router) {
+		r.Post("/", blogController.CreatePost)
+		r.Get("/", blogController.GetPosts)
+
+		r.Route("/{id}", func(r chi.Router) {
+			r.Get("/", blogController.GetPostByID)
+			r.Put("/", blogController.UpdatePost)
+			r.Delete("/", blogController.DeletePost)
+		})
 	})
 
 	fmt.Println("Starting server on :8080")
